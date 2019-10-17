@@ -36,24 +36,24 @@ void main()
     vec3 reflexao1 = reflect(incidenciaLuz1, normal);
 
     // calcula as 3 componentes de Phong: ambiente, difusa, especular
-    vec4 ambiente = vec4(0.15, 0.15, 0.15, 1.0) * texture2D(u_diffuseTexture, v_texCoords);
+    vec4 ambiente = vec4(vec3(0.15), 1.0) * texture2D(u_diffuseTexture, v_texCoords);
 
     // componente difusa, considerando cada fonte luminosa
     float cossenoDifusa0 = dot(normal, incidenciaLuz0);
     float cossenoDifusa1 = dot(normal, incidenciaLuz1);
-    if (cossenoDifusa0 > 0.6667) {
-        cossenoDifusa0 = 1;
-    } else if (cossenoDifusa0 > 0.3333) {
+    if (cossenoDifusa0 > 0.67) {
+        cossenoDifusa0 = 1.00;
+    } else if (cossenoDifusa0 > 0.33) {
         cossenoDifusa0 = 0.75;
     } else {
-        cossenoDifusa0 = 0.3333;
+        cossenoDifusa0 = 0.33;
     }
-    if (cossenoDifusa1 > 0.6667) {
-        cossenoDifusa1 = 1;
-    } else if (cossenoDifusa1 > 0.3333) {
+    if (cossenoDifusa1 > 0.67) {
+        cossenoDifusa1 = 1.00;
+    } else if (cossenoDifusa1 > 0.33) {
         cossenoDifusa1 = 0.75;
     } else {
-        cossenoDifusa1 = 0.3333;
+        cossenoDifusa1 = 0.33;
     }
 
     vec4 difusa = max(0.0, cossenoDifusa0) * texture2D(u_diffuseTexture, v_texCoords) * u_dirLights0color; 
@@ -65,12 +65,12 @@ void main()
         // luz está do lado de trás... não há contribuição
     } else {
         float cossenoEspecular0 = dot(visualizacao, reflexao0);
-        if (cossenoEspecular0 > 0.6667) {
-            cossenoEspecular0 = 1;
-        } else if (cossenoEspecular0 > 0.3333) {
+        if (cossenoEspecular0 > 0.67) {
+            cossenoEspecular0 = 1.00;
+        } else if (cossenoEspecular0 > 0.33) {
             cossenoEspecular0 = 0.75;
         } else {
-            cossenoEspecular0 = 0.3333;
+            cossenoEspecular0 = 0.33;
         }
         especular = pow(max(0.0, cossenoEspecular0), 100.0) * u_dirLights0color;
     }
@@ -78,12 +78,12 @@ void main()
         // luz está do lado de trás... não há contribuição
     } else {
         float cossenoEspecular1 = dot(visualizacao, reflexao1);
-        if (cossenoEspecular1 > 0.6667) {
-            cossenoEspecular1 = 1;
-        } else if (cossenoEspecular1 > 0.3333) {
+        if (cossenoEspecular1 > 0.67) {
+            cossenoEspecular1 = 1.00;
+        } else if (cossenoEspecular1 > 0.33) {
             cossenoEspecular1 = 0.75;
         } else {
-            cossenoEspecular1 = 0.3333;
+            cossenoEspecular1 = 0.33;
         }
         especular += pow(max(0.0, cossenoEspecular1), 30.0) * u_dirLights1color;
     }

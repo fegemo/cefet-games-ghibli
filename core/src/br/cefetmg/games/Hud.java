@@ -161,7 +161,7 @@ public class Hud implements Disposable {
     }
     
     public void setPosProcessamento(boolean ativado) {
-        rotuloPosProcessamento.setText("[#000000ff]Pos-processamento: [#4ed36dff]" + (ativado ? "ativado" : "desativado"));
+        rotuloPosProcessamento.setText("[#000000ff]Pos-processamento: [#4ed36dff]" + (ativado ? "ativado" : "desativado") + " [#000000ff][P]");
     }
 
     public void update(float dt) {

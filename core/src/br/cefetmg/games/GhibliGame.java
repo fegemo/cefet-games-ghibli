@@ -83,7 +83,7 @@ public class GhibliGame extends ApplicationAdapter {
         camera = new PerspectiveCamera(60, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         camera.position.set(0f, 15f, 30f);
         camera.lookAt(Vector3.Zero);
-        camera.near = 0.1f;
+        camera.near = 1f;
         camera.far = 3000f;
         camera.update();
         viewport = new ScreenViewport(camera);

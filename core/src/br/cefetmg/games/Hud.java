@@ -37,6 +37,7 @@ public class Hud implements Disposable {
     private final BitmapFont font32;
     private final Label rotuloVertices;
     private final Label rotuloTitulo;
+    private final Label rotuloPosProcessamento;
 
     public Hud() {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("hud/ghibli.ttf"));
@@ -133,6 +134,7 @@ public class Hud implements Disposable {
         // configura título e número de vértices
         rotuloTitulo = new Label("Ghibli Shader Studio", skin, "ghibli-font-32", Color.BLACK);
         rotuloVertices = new Label("Vertices: ", skin, "ghibli-font", Color.WHITE);
+        rotuloPosProcessamento = new Label("Pos-processamento: ", skin, "ghibli-font", Color.WHITE);
         
         // configura o layout (tabela) raiz
         layout = new Table(skin);
@@ -140,6 +142,8 @@ public class Hud implements Disposable {
         layout.add(rotuloTitulo).padBottom(5).center();
         layout.row();
         layout.add(rotuloVertices).padRight(5).right();
+        layout.row();
+        layout.add(rotuloPosProcessamento).padRight(5).right();
         layout.row();
         layout.add().expandY();
         layout.row();
@@ -154,6 +158,10 @@ public class Hud implements Disposable {
     
     public void setVertices(int vertices) {
         rotuloVertices.setText("[#000000ff]Vertices: [#4ed36dff]" + NumberFormat.getNumberInstance(Locale.getDefault()).format(vertices));
+    }
+    
+    public void setPosProcessamento(boolean ativado) {
+        rotuloPosProcessamento.setText("[#000000ff]Pos-processamento: [#4ed36dff]" + (ativado ? "ativado" : "desativado"));
     }
 
     public void update(float dt) {

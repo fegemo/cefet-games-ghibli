@@ -10,6 +10,9 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
+import com.badlogic.gdx.graphics.Pixmap.Format;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
@@ -22,6 +25,8 @@ import com.badlogic.gdx.graphics.g3d.loader.ObjLoader;
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader.ObjLoaderParameters;
 import com.badlogic.gdx.graphics.g3d.utils.AnimationController;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.JsonReader;
@@ -55,19 +60,24 @@ public class GhibliGame extends ApplicationAdapter {
     // hud
     private Hud hud;
     
+    // pós processamento
+    private boolean postProcessingActivated = true;
+    private ShaderProgram postProcessingShader;
+    private FrameBuffer sceneFbo;
+    private SpriteBatch spriteBatch;
 
     @Override
     public void create() {
         // instancia elementos de renderização
         meuPrimeiroShader = new MeuPrimeiroShaderS2();
+        meuPrimeiroShader.init();
         modelBatch = new ModelBatch();
         environment = new Environment();
-        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.3f, 0.3f, 0.3f, 1f));
+        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.3f, 0.3f, 0.3f, 1f));        
         light1 = new DirectionalLight().set(new Color(0.5f, 0.5f, 0.5f, 1.0f), new Vector3(-5f, -0.8f, -5.2f));
         light2 = new DirectionalLight().set(new Color(0.5f, 0.5f, 0.5f, 1.0f), new Vector3(5f, 0.8f, 5.2f));
         environment.add(light1);
         environment.add(light2);
-        meuPrimeiroShader.init();
 
         // iniciliza câmera
         camera = new PerspectiveCamera(60, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -108,6 +118,15 @@ public class GhibliGame extends ApplicationAdapter {
         hud.setVertices(quantidadeVertices);
         worldAndHudInputProcessor = new InputMultiplexer(hud.getInputProcessor(), cameraController);
         Gdx.input.setInputProcessor(worldAndHudInputProcessor);
+        
+        // pós processamento
+        postProcessingShader = new PostProcessingShader().getShaderProgram();
+        hud.setPosProcessamento(postProcessingActivated);
+
+        spriteBatch = new SpriteBatch();
+        spriteBatch.setShader(postProcessingShader);
+        spriteBatch.setProjectionMatrix(new Matrix4());
+        spriteBatch.setTransformMatrix(new Matrix4());
     }
 
     @Override
@@ -115,11 +134,14 @@ public class GhibliGame extends ApplicationAdapter {
         // atualiza a viewport para manter a razão de aspecto
         viewport.update(width, height);
         hud.resize(width, height);
+        sceneFbo = new FrameBuffer(Format.RGBA8888, width, height, true);
+        spriteBatch.setProjectionMatrix(new Matrix4().setToOrtho(0, width, 0, height, -1, 1));
     }
 
     @Override
     public void render() {
         float dt = Gdx.graphics.getDeltaTime();
+        Gdx.graphics.setTitle("Ghibli Shader Studio (FPS: " + Gdx.graphics.getFramesPerSecond() + ")");
         
         // atualiza a cena
         atualizaFontesDeLuz(dt);
@@ -128,14 +150,35 @@ public class GhibliGame extends ApplicationAdapter {
         hud.update(dt);
         verificaInput();
         
-        // limpa e desenha a cena
+        // 1º PASSO de renderização:
+        // ativa o FBO para desenhar a cena em uma textura, em vez do 
+        // framebuffer padrão
+        sceneFbo.begin(); {
+
+            // limpa e desenha a cena
+            Gdx.gl.glClearColor(1, 1, 1, 1);
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
+
+            modelBatch.begin(camera);
+            modelBatch.render(totoro, environment, meuPrimeiroShader);
+            modelBatch.render(mei, environment);
+            modelBatch.end();
+
+            sceneFbo.end();
+        }
+ 
+        
+        // 2º PASSO de renderização:
+        // agora, no framebuffer padrão, limpa de novo e desenha a textura
         Gdx.gl.glClearColor(1, 1, 1, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-
-        modelBatch.begin(camera);
-        modelBatch.render(totoro, environment, meuPrimeiroShader);
-        modelBatch.render(mei, environment);
-        modelBatch.end();
+        
+        sceneFbo.getColorBufferTexture();
+        spriteBatch.begin();
+        TextureRegion sceneTexture = new TextureRegion(sceneFbo.getColorBufferTexture());
+        sceneTexture.flip(false, true);
+        spriteBatch.draw(sceneTexture, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        spriteBatch.end();
         
         hud.render();
     }
@@ -209,6 +252,15 @@ public class GhibliGame extends ApplicationAdapter {
                 cameraFocus = mei;
             }
             cameraAnimationTime = 0;
+        }
+        if (Gdx.input.isKeyJustPressed(Keys.P)) {
+            postProcessingActivated = !postProcessingActivated;
+            hud.setPosProcessamento(postProcessingActivated);
+            if (postProcessingActivated) {
+                spriteBatch.setShader(postProcessingShader);
+            } else {
+                spriteBatch.setShader(null);
+            }
         }
     }
 }

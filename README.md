@@ -1,19 +1,18 @@
 # Ghibli Shader Studio
 
-Aprendendo colorir com os mestres da animação.
+Aprendendo colorir com os mestres da animação. Agora com pós-processamento 👍
 
-![](docs/resultado-final.png)
+![](docs/resultado-pos-final.png)
 
 ## Atividade
 
-Esta atividade prática contém 3 exercícios obrigatórios e outros opcionais, 
-dentre os quais você deve tentar fazer ao menos 1. Inicialmente, a cena
-está colorindo cada fragmento do Totoro usando o valor do vetor normal:
-
-![](docs/situacao-0.png)
-
-Vamos usar os modelos de iluminação e sombreamento de Phong. Para lembrar
-como ele funciona, veja o [FAQ](#faq).
+Esta atividade prática contém 7 exercícios sendo que os seis primeiros são
+obrigatórios. A cena está sendo renderizada em 2 passos, sendo que
+a segunda etapa é a de pós-processamento (_shaders_ 
+`post-process.vertex.glsl` e `post-process.fragment.glsl`). Contudo, a
+função de pós-processamento não está fazendo nada ainda. Vamos implementar
+alguns efeitos de pós-processamento. Todas as atividades serão feitas
+no arquivo `core/assets/shaders/post-process.fragment.glsl`.
 
 Para controlar a aplicação, você pode:
 
@@ -25,261 +24,180 @@ Para controlar a aplicação, você pode:
     - <kbd>space</kbd>: pausa/retoma animação da Mei
     - <kbd>ESC</kbd>: sai da aplicação
     - <kbd>TAB</kbd>: faz a câmera focar na Mei ou no Totoro alternadamente
+    - 🆕 <kbd>p</kbd>: ativa/desativa pós-processamento
 
 
-### 1. _Shader_: componente ambiente
+### 1. Inverter cores
 
-No _fragment shader_, você deve colocar como a cor resultante do fragmento
-a componente ambiente de Phong. Esse valor pode ser simplesmente uma cor
-constante, próxima de preto eg (0.15, 0.15, 0.15, 1.0). O resultado desta etapa
-deve ser tipo:
+No _fragment shader_ de pós-processamento já existe uma função `vec3 inverter(vec3 cor)`,
+só que ela está apenas retornando a cor recebida, sem modificá-la.
 
-![](docs/situacao-1.png)
+Implemente essa função corretamente de forma que cores brancas fiquem pretas,
+pretas fiquem brancas, um tom de 0.3 vire 0.7 e vice-versa.
 
-**Observação**: o GLSL é lindo, mas tem um negócio chato. Se você tentar criar
-um `vec4` da forma `vec4(0.15, 0.15, 0.15, **1**)` (sem o `.0`) ele vai dar
-erro de compilação, com uma mensagem bem confusa. Portanto, lembre-se sempre
-de colocar `.0` nos seus números inteiros.
+Lembre-se de chamar essa função e atribuir seu retorno à variável especial
+do _fragment shader_ chamada `gl_FragColor` (`vec4`).
 
-
-### 2. _Shader_: componente difusa
-
-No _fragment shader_, agora você vai implementar a componente difusa do
-modelo de Phong. Se olharmos para o modelo, veremos que essa componente (D)
-pode ser calculada como
-
-```
-D = máximo(0.0, n . s) * corDaLuz
-```
-
-O vetor `n` é o vetor normal do fragmento atual. Ele é um `varying`, ou seja,
-um valor específico de cada fragmento que é calculado lá no _vertex shader_
-e passado adiante. Na verdade, o _vertex shader_ calcula o vetor normal de cada
-vértice, que serão interpolados para saber o valor da normal de cada fragmento.
-
-O vetor `s` é a "incidência" da luz. Ele aponta no sentido contrário da direção
-de onde os raios de luz estão batendo no fragmento sendo colorido. Você deve
-calcular esse vetor dado o vetor uniforme chamado `u_dirLights0direction`,
-que é um `vec3` que indica a direção de incidência dos raios de luz na cena.
-
-A `corDaLuz` é um valor uniforme (mesmo para todos os fragmentos) que contém um
-`vec4` com a cor da luz emanada pela fonte.
-
-Para calcular o produto escalar entre dois vetores, 
-podemos usar a função `dot(v1, v2)`. Para pegar
-o maior dentre dois valores usamos `max(valor1, valor2)`.
-O resultado parcial da cena deve ser algo tipo:
-
-![](docs/situacao-2.png)
+**Observação**: como a função retorna um `vec3`, mas precisamos preencher um
+`vec4`, você deve criar um `vec4` a partir do `vec3`, com o valor 1.0 na 
+coordenada _alpha_, tipo assim: `vec4(corEmRGB, 1.0)`.
 
 
-### 3. _Shader_: usando textura para componente difusa
+### 2. Converter para escala de cinza
 
-A textura já está sendo passada para os _shaders_. Você pode acessá-la por
-meio da variável uniforme `u_diffuseTexture`, que é do tipo `sampler2D` do
-GLSL. Um `sampler2D` é capaz de pegar valores de uma textura amostrando
-seus valores, dadas as coordenadas `(s, t)` (também chamadas `(u, v)`).
+Agora, vamos fazer o efeito de pós-processamento para deixar a imagem em
+escala de cinza. Crie uma função (eg, `vec3 paraCinza(vec3 cor)`) que 
+recebe uma cor e retorna um tom de cinza.
 
-Para pegar um valor da textura, usamos a função 
-`texture2D(qualTextura, coordenadas)` do GLSL, passando como parâmetros
-o `sampler2D` que queremos amostrar (`qualTextura`) e o valor de `(s,t)`,
-das `coordenadas` de textura. Estas podem ser obtidas pegando-se o valor
-da variável `varying` (um valor para cada fragmento) chamada `v_texCoords`.
+Qualquer ~50 tons~ tom de cinza tem o mesmo valor para r, g e b. Logo,
+para converter uma cor para um tom de cinza precisamos retornar algo como
+`vec3(tomCinza, tomCinza, tomCinza)`. Mas quanto deve ser esse `tomCinza`?
 
-Para fazer esta atividade, você deve multiplicar a cor difusa obtida no
-exercício 2 pelo valor amostrado da textura. Para ficar bonito, multiplique a
-componente ambiente também (veja e procure entender a diferença).
+Uma abordagem simples é tirar uma média aritmética dos valores de (r, g, b).
+Contudo, estudos indicam que o olho humano é mais sensível a verde e menos
+a azul. Logo, uma abordagem que agrada melhor os olhos é fazer uma **média
+ponderada** usando os pesos (0.2989, 0.5879, 0.1140).
 
-**Observação**: neste caso, estamos fazendo uma operação de multiplicar duas
-cores `(r,g,b,a)` - isso não tem interpretação geométrica, mas como não
-se trata de posições/vetores, não há problema. Para multiplicar dois vetores
-valor por valor, basta usar o operador `*` normalmente.
+**Observação**: como a variável `tomCinza` é apenas um escalar (e não um vetor),
+você pode usar o tipo de dados `float` para ela.
 
-O resultado após esta etapa é:
-
-![](docs/situacao-3.png)
+**Observação 2**: é possível usar a operação geométrica de **produto
+escalar** (`dot(vetor1, vetor2)`) para calcular o `tomCinza` se houver 
+um vetor de pesos e o outro com os valores.
 
 
-### 4. _Shader_: componente especular
+### 3. Converter para colorização Sepia
 
-Agora, você vai implementar a componente especular do modelo de Phong.
-Ela modela o comportamento de materiais que são muito polidos (lisinhos)
-e, por isso, boa parte da luz que chega a um ponto do objeto é refletida
-com o mesmo ângulo de incidência.
+[A cor sépia][sepia] é um tom de marrom que foi muito usado desde a Grécia antiga
+como tinta para escrita e passou a ser presente também em obras de arte
+até o final do século 19.
 
-No _fragment shader_ você vai precisar, para a componente especular, dos
-vetores que apontam para a reflexão perfeita da luz (`r`) e para a câmera
-(`v`).
-
-Para calcular `r`, você pode usar a função `reflect(qualVetor, emRelacaoAQuem)`
-passando o vetor de incidência da luz e o vetor normal.
-
-Para calcular `v`, basta fazer a conta que é o ponto onde a câmera está 
-menos ponto que representa a posição do fragmento (`v_fragPosition`). No caso,
-a posição do fragmento está dada no sistema de coordenadas da câmera - ou seja,
-a câmera está no ponto `(0, 0, 0, 1)`. Não se esqueça de normalizar o resultado.
-
-Para calcular a componente especular (`S`), você deve implementar a seguinte
-equação:
+Para converter uma cor para sua versão em sépia, precisamos atribuir diferentes
+valores para (r, g, b), como média ponderada usando os seguintes pesos:
 
 ```
-S = eleva( máximo( 0.0, r . v), brilho) * corDaLuz
+          r       g       b
+NovoR: 0.393   0.769   0.189
+NovoG: 0.349   0.686   0.168
+NovoB: 0.272   0.534   0.131
 ```
 
-O `brilho` é o expoente de especularidade e tem valores típicos entre 5 e 100.
-Valores altos do expoente fazem com que os brilhos da componente especular
-estejam bem concentrados (pequenos) e valores baixos os deixam espalhados.
-Inicialmente, coloque um valor bem alto (pra ficar fácil visualizar que 
-deu certo). Depois, ajuste para algum valor que seja mais agradável.
+Ou seja, `NovoR = 0.393r + 0.769g + 0.189b` (da primeira linha) e daí 
+por diante.
 
-**Observação**: a componente especular tem a cor da fonte de luz apenas,
-desconsiderando a cor do material/textura.
-
-Nesse momento, o resultado parcial é algo como (usei `brilho = 90.0`):
-
-![](docs/situacao-4a.png)
-
-Existe um problema na cena. Note que o brilho especular aparece tanto
-quando a luz está passando do lado do Totoro quanto quando ela está atrás.
-Para corrigir, você deve verificar se o ângulo entre o vetor reflexão (`r`)
-e o vetor normal (`n`) é maior que zero. Se for menor, a reflexão está 
-acontecendo pelo lado de trás e, portanto, deve ser nula. Após fazer essa
-correção (com um `if`), o resultado será parecido com:
-
-![](docs/situacao-4b.png)
-
-O modelo de Phong prevê que existam coeficientes, escalares ou de cor (`vec3`),
-para indicar "o quanto o material responde a cada componente". Ou seja,
-um `float coeficienteAmbiente`, um `float coeficienteDifusa`, e outro
-`float coeficienteEspecular`. Materiais que são muito lisos (como plástico),
-possuem um `coeficienteEspecular` alto (próximo de 1), ao passo que materiais
-ásperos (eg madeira sem verniz) possuem tal coeficiente baixo (próximo de 0).
-
-Como o Totoro não é feito de um material super liso, convém multiplicar a
-componente especular por um valor baixo (eg, `0.2`). Com esse valor, o
-resultado fica parecido com:
-
-![](docs/situacao-4c.png)
+[sepia]: https://en.wikipedia.org/wiki/Sepia_(color)
 
 
-### [Opcional] 5. _Shader_: segunda fonte de luz
+### Convolução para borragem (_blur_)
 
-A cena possui duas fontes de luz, uma que fica girando, outra que está parada.
-Para ver essa segunda, gire a câmera e repare o brilhinho no cabelo da Mei.
+Para borrar uma imagem misturamos os valores do pixel atual com os pixels
+adjacentes (por exemplo, olhando na vizinhança 3x3).
 
-Neste exercício você deve alterar o _shader_ para usar a contribuição dessa
-segunda fonte de luz. Ele já está recebendo a cor e a direção dela, então
-basta considerá-la ao calcular as componentes difusa e especular.
+Chamamos a operação que percorre uma imagem substituindo o valor do pixel
+atual por uma combinação dos pixels vizinhos de **convolução** (2D).
+
+A forma de combinar os pixels adjacentes ao pixel atual é feita como uma
+média ponderada de seus valores. E o conjunto dos pesos usados é chamdo
+de kernel, ou filtro da convolução.
+
+Para borrar uma imagem, podemos fazer uma convolução com um kernel que
+tira uma média aritmética apenas, ou seja, um kernel do tipo:
+
+```
+| 1.0   1.0   1.0 |
+| 1.0   1.0   1.0 |   / 9.0 (para dividir pelo total)
+| 1.0   1.0   1.0 |
+```
+
+A função `vec3 convolucao(textura, coordenada, kernel)` presente no
+_shader_ `post-process.fragment.glsl` já está implementada e ela espera 
+receber no 3º parâmetro qual é o kernel a ser usado.
+
+Portanto, crie uma função `vec3 borrar(sampler2D textura, vec2 coordenada)`
+que cria um kernel e chama a função de convolução, retornando o resultado
+como a cor resultante do pixel.
+
+Outro tipo de borragem é a gaussiana. Seu kernel é um pouco diferente:
+
+```
+| 1.0   2.0   1.0 |
+| 2.0   4.0   2.0 |   / 16.0 (para dividir pelo total)
+| 1.0   2.0   1.0 |
+```
+
+Teste a borragem gaussiana no seu programa. Crie uma função eg 
+`vec3 borrar(textura, coords)` que faz essa operação
+e utilize-a na `main`.
 
 
-### [Opcional] 6. Aplicação: segundo Totoro
+**Observação**: para representar um kernel você pode usar um _array_
+de `float` usando a seguinte sintaxe do GLSL:
 
-Na aplicação (classe `GhibliGame`), crie um segundo Totoro e o renderize
-na tela. Ele precisa estar posicionado em um local diferente das outras
-instâncias de modelo.
+```glsl
+float kernel[9];
+kernel[0] = valor1;
+kernel[1] = valor2;
+kernel[2] = valor3;
+...
+```
 
-A LibGDX tem os conceitos de:
+### 5. Convolução de aguçamento
 
-- `ModelLoader`: carrega um modelo (tem a classe filha `ObjLoader` e a `FbxLoader`)
-- `Model`: o resultado de carregar um modelo, independente do formato de arquivo
-- `ModelInstance`: é uma instância de um modelo - esse sim possui uma `transform`
-  (posição, orientação, escala) e pode ser renderizado
-- `ModelBatch`: parecido com a `SpriteBatch` (para 2D), ele desenha 
-  "coisas renderizáveis" (`ModelInstance` herda de `RenderableProvider`)
+Use a função de convolução com um kernel que vai aguçar (_sharpen_)
+a imagem. Um exemplo de kernel que faz isso é:
 
-Além de alterar a posição do segundo Totoro, tente alterar também sua orientação.
+```
+|-1.0  -1.0  -1.0 |
+|-1.0   9.0  -1.0 |
+|-1.0  -1.0  -1.0 |
+```
+
+Crie uma função eg `vec3 agucar(textura, coords)` que faz essa operação
+e utilize-a na `main`.
 
 
-### [Opcional] 7. _Shader_: transformar Phong em Cell Shading
+### 6. Convolução de detecção de bordas
 
-O modelo de iluminação de Phong resulta em um degradê entre regiões bem iluminadas
-e mal iluminadas. Contudo, animações 2D (como as do Studio Ghibli) colorem
-os objetos e personagens em células, por exemplo, uma célula 100% iluminada e outra
-50% iluminada.
+Use a função de convolução com um kernel que vai detectar bordas
+(na verdade, realçá-las) na imagem. Um exemplo de kernel que faz isso é:
 
-Neste exercício você vai adaptar seu _fragment shader_ que implementa Phong para
-implementar _Cell Shading_. Essa adaptação é relativamente fácil: em vez de usar
-o cosseno do ângulo entre os vetores das componentes difusa e da especular para
-multiplicar as componentes, defina faixas de ângulos para os quais o fragmento
-está em uma célula (eg 100% iluminado) ou em outra (eg 50% iluminado). Na
-prática, você vai colocar uns `if`s no código e não vai usar cosseno dos ângulos
-na fórmula, mas apenas como condição desses `if`s.
+```
+| 1.0   1.0   1.0 |
+| 1.0  -9.0   1.0 |
+| 1.0   1.0   1.0 |
+```
+
+Crie uma função eg `vec3 bordas(textura, coords)` que faz essa operação
+e utilize-a na `main`.
+
+### [Opcional] 7. Pós-processamento de _Toon Shading_
+
+Tendo essas operações disponíveis, é possível adaptar o _Cell Shading_
+em _Toon Shading_ (colore por células + contornos pretos realçados).
+
+Uma forma possível é aplicar a convolução de detecção de bordas,
+converter o resultado para escala de cinza e inverter a cor (para que
+as bordas mudem de branco para preto).
+
+Daí, caso a cor do fragmento não seja próxima de branco, quer dizer
+que ele é um fragmento de contorno. Nesse caso (`if`), estamos em 
+um contorno - logo, retorne a cor preta. Do contrário, não
+estamos em um contorno - retorne simplesmente a cor da textura.
 
 
 ## FAQ
 
-### Como é o modelo de Phong mesmo?
+### Como fazer a renderização em 2 passos?
 
-### Como carrego modelos 3D com a LibGDX?
+Para fazer a renderização em 2 passos é necessário, no primeiro,
+"renderizar para uma textura". Isso é feito usando um recurso chamado
+_Frame Buffer Object_ (FBO), que é o cara que armazenará a textura
+onde a cena será renderizada.
 
-Há dois tutoriais interessantes a respeito de [carregamento de objetos 3D][load-3d-tut]
-e sobre [_shaders_ na LibGDX][shaders-tut]. Resumidamente, a LibGDX tem suporte aos
-formatos `.obj` e `.fbx`, por meio dos `ModelLoader`s `ObjLoader` e `FbxLoader`.
-Lembre-se que um arquivo desse formato não armazena informações sobre animações - ele
-contém apenas as posições,coordenadas de textura e vetores normais dos vértices, além
-da lista quais vértices formam faces.
+No segundo passo, apenas 4 vértices são submetidos para o pipeline,
+com a textura do FBO associada e usando o _shader_ de pós-processamento.
 
-Para carregar um arquivo `.obj`, basta colocá-lo na pasta dos _assets_ e fazer
-```java
-ModelLoader objLoader = new ObjLoader();
-Model modelo = objLoader.loadModel(Gdx.files.internal("caminho-para-arquivo.obj))
-```
-Se esse modelo tiver um arquivo `.mtl` (que descreve seus materiais), e esse 
-arquivo apontar para uma ou mais texturas, a LibGDX vai procurar por eles 
-a partir da mesma pasta onde está o `.obj`. A documentação da LibGDX indica
-que o `ObjLoader` é para uso apenas para testes, não para produção. Neste caso,
-deve ser preterido pelo `FbxLoader`.
+As modificações que foram feitas no programa para fazer a renderização
+em dois passos são basicamente as presentes no seguinte _diff_:
 
-Para carregar um arquivo `.fbx`, ele deve ser primeiro convertido para o formato
-`.g3db` (que é binário, assim como o `.fbx`) ou para o formato `.g3dj` (JSON).
-Para tanto, usamos a ferramenta [fbx-conv][libgdx-tools] que faz essa conversão.
-Você deve baixá-la e, para gerar um arquivo no formato `.g3dj` a partir de
-um `.fbx`:
-
-```
-fbx-conv-lin64 -f -o G3DJ caminho-para-arquivo.fbx
-```
-
-Tendo o arquivo `caminho-para-arquivo.g3dj`, ele pode ser carregado com:
-
-```java
-ModelLoader fbxLoader = new FbxLoader(new JsonReader());
-Model modelo = fbxLoader.loadModel(Gdx.input.internal("caminho-para-arquivo.g3dj"));
-```
-
-Tendo um modelo carregado, ainda não conseguimos desenhá-lo na cena. Precisamos
-criar um `ModelInstance` a partir do modelo e, esse sim, pode ser desenhado:
-
-```java
-ModelInstance instancia = new ModelInstance(modelo);
-```
-
-Por fim, para desenhar uma instância de modelo, precisamos de um `ModelBatch`:
-
-```java
-public void render() {
-    //...
-    modelBatch.begin(camera);
-    modelBatch.render(instancia, environment);
-    modelBatch.end();
-    //...
-}
-```
-
-Para colocar fontes de luz na cena e configurar outras coisas (como neblina),
-usamos um `Environment`.
-
-[load-3d-tut]: https://xoppa.github.io/blog/loading-models-using-libgdx/
-[shaders-tut]: https://xoppa.github.io/blog/using-materials-with-libgdx/
-[libgdx-tools]: https://libgdx.badlogicgames.com/tools.html
-
-#### Possíveis problemas ao carregar
-
-Pode acontecer de o modelo não aparecer mesmo estando tudo aparentemente
-certo com ele. Nesse caso, verifique se o material do objeto está
-definido com valores corretos. Por exemplo, pode ser que o material de um
-`.g3dj` esteja com o valor `opacity` com `0.0`. Ou então, tanto o
-`.g3dj` quanto o `.obj` podem estar com uma cor difusa de `(r, g, b, 0)`.
-
-Ao executar animações, para saber qual o nome da animação do `.g3dj` você
-quer, abra o arquivo e procure pela string "animations".
+Diff online: [https://www.diffchecker.com/6umlX9qk](https://www.diffchecker.com/6umlX9qk)
